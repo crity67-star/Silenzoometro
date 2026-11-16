@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Silenziometro di Natale per la LIM</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(to bottom, #1a2a6c, #b21f1f, #fdbb2d);
+            color: white;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+        h1 {
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            margin-bottom: 10px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            border: 2px solid #fff;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        button {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            background-color: #27ae60;
+        }
+        button.stop {
+            background-color: #e74c3c;
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+        }
+        button.stop:hover {
+            background-color: #c0392b;
+        }
+        .slider-container {
+            background: rgba(255,255,255,0.1);
+            padding: 10px 20px;
+            border-radius: 15px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .status-box {
+            margin: 30px 0;
+            padding: 20px;
+            border-radius: 15px;
+            transition: background-color 0.5s ease;
+        }
+        .santa-display {
+            font-size: 8rem;
+            margin: 20px 0;
+            animation: float 3s ease-in-out infinite;
+            transition: all 0.2s ease;
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .status-text {
+            font-size: 2rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .visualizer-container {
+            width: 100%;
+            height: 30px;
+            background-color: #34495e;
+            border-radius: 15px;
+            margin: 20px 0;
+            overflow: hidden;
+            border: 2px solid #fff;
+            position: relative;
+        }
+        .bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(to right, #2ecc71, #f1c40f, #e74c3c);
+            transition: width 0.1s ease;
+        }
+        .threshold-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background-color: #fff;
+            box-shadow: 0 0 8px #fff;
+        }
+        .gift-box {
+            margin-top: 30px;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 20px;
+            border-radius: 15px;
+        }
+        .gifts-display {
+            font-size: 3rem;
+            margin-top: 10px;
+            min-height: 4.5rem;
+            letter-spacing: 5px;
+        }
+        .timer-display {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #f1c40f;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎅 Il Rumorometro di Babbo Natale 🎄</h1>
+    <div class="container">
+        <p>Mantieni il silenzio in classe! Se fai troppo rumore, Babbo Natale si sveglierà. Per ogni minuto di silenzio, gli elfi caricheranno un regalo sulla slitta! 🎁</p>
+        
+        <div class="controls">
+            <button id="startBtn" onclick="startAudio()">▶ Avvia Silenziometro</button>
+            <button id="stopBtn" class="stop" onclick="stopAudio()" disabled>■ Ferma</button>
+            <div class="slider-container">
+                <label for="threshold">Soglia Tolleranza Rumore</label>
+                <input type="range" id="threshold" min="5" max="80" value="35" oninput="updateThreshold(this.value)">
+                <span id="thresholdVal">35</span>
+            </div>
+        </div>
+
+        <div class="visualizer-container">
+            <div id="volumeBar" class="bar"></div>
+            <div id="thresholdMarker" class="threshold-line" style="left: 35%;"></div>
+        </div>
+
+        <div id="statusBox" class="status-box" style="background-color: #27ae60;">
+            <div id="santa" class="santa-display">😴</div>
+            <div id="statusText" class="status-text">Babbo Natale sta dormendo... Shhh!</div>
+        </div>
+
+        <div class="gift-box">
+            <div class="timer-display">Tempo rimanente al prossimo regalo: <span id="timer">60</span>s</div>
+            <div>🎁 Regali accumulati sulla slitta:</div>
+            <div id="gifts" class="gifts-display"></div>
+        </div>
+    </div>
+
+    <script>
+        let audioContext;
+        let analyser;
+        let microphone;
+        let javascriptNode;
+        let noiseThreshold = 35;
+        let giftTimer = 60;
+        let timerInterval;
+        let isRunning = false;
+        let giftsCount = 0;
+        let isAlerted = false;
+
+        const santaEmoji = document.getElementById('santa');
+        const statusText = document.getElementById('statusText');
+        const statusBox = document.getElementById('statusBox');
+        const volumeBar = document.getElementById('volumeBar');
+        const thresholdMarker = document.getElementById('thresholdMarker');
+        const thresholdVal = document.getElementById('thresholdVal');
+        const timerDisplay = document.getElementById('timer');
+        const giftsDisplay = document.getElementById('gifts');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        function updateThreshold(val) {
+            noiseThreshold = parseInt(val);
+            thresholdVal.innerText = val;
+            thresholdMarker.style.left = val + '%';
+        }
+
+        function startAudio() {
+            if (isRunning) return;
+
+            navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+                .then(function(stream) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    microphone = audioContext.createMediaStreamSource(stream);
+                    javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+
+                    analyser.smoothingTimeConstant = 0.3;
+                    analyser.fftSize = 1024;
+
+                    microphone.connect(analyser);
+                    analyser.connect(javascriptNode);
+                    javascriptNode.connect(audioContext.destination);
+
+                    javascriptNode.onaudioprocess = function() {
+                        const array = new Uint8Array(analyser.frequencyBinCount);
+                        analyser.getByteFrequencyData(array);
+                        let values = 0;
+                        const length = array.length;
+
+                        for (let i = 0; i < length; i++) {
+                            values += array[i];
+                        }
+                        
+                        const average = values / length;
+                        const volumeLevel = Math.min(Math.round(average), 100);
+                        volumeBar.style.width = volumeLevel + '%';
+
+                        if (volumeLevel > noiseThreshold) {
+                            triggerNoiseAlarm();
+                        } else {
+                            resetSantaStatus();
+                        }
+                    };
+
+                    startGiftTimer();
+                    isRunning = true;
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                })
+                .catch(function(err) {
+                    alert("Impossibile accedere al microfono. Verifica i permessi del browser.");
+                    console.error(err);
+                });
+        }
+
+        function triggerNoiseAlarm() {
+            isAlerted = true;
+            santaEmoji.innerText = "🎅💢";
+            statusText.innerText = "Babbo Natale si è svegliato! C'è troppo rumore!";
+            statusBox.style.backgroundColor = "#c0392b";
+            giftTimer = 60;
+            timerDisplay.innerText = giftTimer;
+        }
+
+        function resetSantaStatus() {
+            if (volumeBar.style.width === '0%') return; 
+            
+            isAlerted = false;
+            if (santaEmoji.innerText !== "😴") {
+                santaEmoji.innerText = "😴";
+                statusText.innerText = "Babbo Natale sta dormendo... Shhh!";
+                statusBox.style.backgroundColor = "#27ae60";
+            }
+        }
+
+        function startGiftTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (!isAlerted && isRunning) {
+                    giftTimer--;
+                    timerDisplay.innerText = giftTimer;
+
+                    if (giftTimer <= 0) {
+                        giftTimer = 60;
+                        giftsCount++;
+                        if (giftsCount % 10 === 0) {
